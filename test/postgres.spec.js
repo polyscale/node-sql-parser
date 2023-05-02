@@ -802,6 +802,44 @@ describe('Postgres', () => {
         `CREATE TABLE IF NOT EXISTS "users" ("id" BIGSERIAL PRIMARY KEY, "date_created" TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'), "first_name" VARCHAR(128) NOT NULL)`
       ]
     },
+    {
+      title: 'from clause in update',
+      sql: [
+        `UPDATE t1 SET c1 = 'x' FROM t2 WHERE c3 = t2.c2`,
+        `UPDATE "t1" SET "c1" = 'x' FROM "t2" WHERE "c3" = "t2"."c2"`,
+      ]
+    },
+    {
+      title: 'from clause in update with select',
+      sql: [
+        `UPDATE t1 SET c1 = 'x' FROM (select c2 from t2) WHERE c3 = c2`,
+        `UPDATE "t1" SET "c1" = 'x' FROM (SELECT "c2" FROM "t2") WHERE "c3" = "c2"`,
+      ]
+    },
+    {
+      title: 'drop index',
+      sql: [
+        'drop index concurrently title_index cascade',
+        'DROP INDEX CONCURRENTLY "title_index" CASCADE'
+      ],
+    },
+    {
+      title: 'with clause in update',
+      sql: [
+        `WITH olds AS (SELECT test_field_1, test_field_2 FROM test_tbl WHERE test_field_1=5)
+        UPDATE test_tbl SET test_field_2 ='tested!' WHERE test_field_1=5
+        RETURNING (SELECT test_field_1 FROM olds) AS test_field_1_old,
+        (SELECT test_field_2 FROM olds) AS test_field_2_old;`,
+        `WITH "olds" AS (SELECT "test_field_1", "test_field_2" FROM "test_tbl" WHERE "test_field_1" = 5) UPDATE "test_tbl" SET "test_field_2" = 'tested!' WHERE "test_field_1" = 5 RETURNING (SELECT "test_field_1" FROM "olds") AS "test_field_1_old", (SELECT "test_field_2" FROM "olds") AS "test_field_2_old"`
+      ]
+    },
+    {
+      title: 'string concatenator in where clause',
+      sql: [
+        "SELECT * from tests where name = 'test' || 'abc';",
+        `SELECT * FROM "tests" WHERE "name" = 'test' || 'abc'`
+      ]
+    },
   ]
   function neatlyNestTestedSQL(sqlList){
     sqlList.forEach(sqlInfo => {

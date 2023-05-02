@@ -870,17 +870,17 @@ drop_stmt
     }
   / a:KW_DROP __
     r:KW_INDEX __
+    cu:KW_CONCURRENTLY? __
+    ie:('IF'i __ KW_EXISTS)? __
     i:column_ref __
-    KW_ON __
-    t:table_name __
-    op:drop_index_opt? __ {
+    op:('CASCADE'i / 'RESTRICT'i)? {
       /*
       export interface drop_index_stmt_node {
         type: 'drop';
+        prefix?: 'CONCURRENTLY';
         keyword: string;
         name: column_ref;
-        table: table_name;
-        options?: drop_index_opt;
+        options?: 'cascade' | 'restrict';
       }
       => AstStatement<drop_index_stmt_node>
       */
@@ -890,9 +890,9 @@ drop_stmt
         ast: {
           type: a.toLowerCase(),
           keyword: r.toLowerCase(),
+          prefix: cu,
           name: i,
-          table: t,
-          options: op
+          options: op && [{ type: 'origin', value: op }]
         }
       };
     }
@@ -2240,16 +2240,19 @@ limit_clause
     }
 
 update_stmt
-  = KW_UPDATE    __
+  = __ cte:with_clause? __ KW_UPDATE    __
     t:table_ref_list __
     KW_SET       __
     l:set_list   __
+    f:from_clause? __
     w:where_clause? __
     r:returning_stmt? {
       /* export interface update_stmt_node {
+        with?: with_clause;
          type: 'update';
          table: table_ref_list;
          set: set_list;
+         from?: from_clause;
          where?: where_clause;
          returning?: returning_stmt;
       }
@@ -2275,9 +2278,11 @@ update_stmt
         tableList: Array.from(tableList),
         columnList: columnListTableAlias(columnList),
         ast: {
+          with: cte,
           type: 'update',
           table: t,
           set: l,
+          from: f,
           where: w,
           returning: r,
         }
@@ -2813,7 +2818,7 @@ multiplicative_expr
     }
 
 multiplicative_operator
-  = "*" / "/" / "%"
+  = "*" / "/" / "%" / "||"
 
 primary
   = cast_expr
@@ -2936,14 +2941,11 @@ ident
     }
 
 alias_ident
-  = name:ident_name !{ if (reservedMap[name.toUpperCase()] === true) throw new Error("Error: "+ JSON.stringify(name)+" is a reserved word, can not as alias clause"); return false } __ LPAREN __ c:column_list __ RPAREN {
+  = name:ident_name !{ return reservedMap[name.toUpperCase()] === true; } __ LPAREN __ c:column_list __ RPAREN {
     // => string
     return `${name}(${c.join(', ')})`
   }
-  / name:ident_name !{
-      if (reservedMap[name.toUpperCase()] === true) throw new Error("Error: "+ JSON.stringify(name)+" is a reserved word, can not as alias clause");
-      return false
-    } {
+  / name:ident_name !{ return reservedMap[name.toUpperCase()] === true; } {
       // => string
       return name;
     }

@@ -1445,15 +1445,16 @@ show_stmt
       }
     }
   }
-  / KW_SHOW __ KW_CREATE __ KW_VIEW __ t:table_name {
+  / KW_SHOW __ KW_CREATE __ k:(KW_VIEW / KW_TABLE) __ t:table_name {
+    const suffix = k.toLowerCase()
     return {
         tableList: Array.from(tableList),
         columnList: columnListTableAlias(columnList),
         ast: {
           type: 'show',
           keyword: 'create',
-          suffix: 'view',
-          view: t
+          suffix,
+          [suffix]: t
         }
       };
   }
@@ -1522,8 +1523,9 @@ with_clause
     }
 
 cte_definition
-  = name:(literal_string / ident_name) __ columns:cte_column_definition? __ KW_AS __ LPAREN __ stmt:set_op_stmt __ RPAREN {
+  = name:(literal_string / ident_name / table_name) __ columns:cte_column_definition? __ KW_AS __ LPAREN __ stmt:set_op_stmt __ RPAREN {
     if (typeof name === 'string') name = { type: 'default', value: name }
+    if (name.table) name = { type: 'default', value: name.table }
     return { name, stmt, columns };
   }
 
@@ -2420,7 +2422,7 @@ multiplicative_expr
     }
 
 multiplicative_operator
-  = "*" / "/" / "%"
+  = "*" / "/" / "%" / "||"
   / "div"i {
     return 'DIV'
   }
@@ -2732,6 +2734,38 @@ convert_args
       value: [c]
     }
   }
+extract_filed
+  = f:('CENTURY'i / 'DAY'i / 'DATE'i / 'DECADE'i / 'DOW'i / 'DOY'i / 'EPOCH'i / 'HOUR'i / 'ISODOW'i / 'ISOWEEK'i / 'ISOYEAR'i / 'MICROSECONDS'i / 'MILLENNIUM'i / 'MILLISECONDS'i / 'MINUTE'i / 'MONTH'i / 'QUARTER'i / 'SECOND'i / 'TIME'i / 'TIMEZONE'i / 'TIMEZONE_HOUR'i / 'TIMEZONE_MINUTE'i / 'WEEK'i / 'YEAR'i) {
+    return f
+  }
+extract_func
+  = kw:KW_EXTRACT __ LPAREN __ f:extract_filed __ KW_FROM __ t:(KW_TIMESTAMP / KW_INTERVAL / KW_TIME / KW_DATE) __ s:expr __ RPAREN {
+    return {
+        type: kw.toLowerCase(),
+        args: {
+          field: f,
+          cast_type: t,
+          source: s,
+        }
+    }
+  }
+  / kw:KW_EXTRACT __ LPAREN __ f:extract_filed __ KW_FROM __ s:expr __ RPAREN {
+    return {
+        type: kw.toLowerCase(),
+        args: {
+          field: f,
+          source: s,
+        }
+    }
+  }
+  / 'DATE_TRUNC'i __  LPAREN __ e:expr __ COMMA __ f:extract_filed __ RPAREN {
+    return {
+        type: 'function',
+        name: 'DATE_TRUNC',
+        args: { type: 'expr_list', value: [e, { type: 'origin', value: f }] },
+        over: null,
+      };
+  }
 
 trim_position
   = 'BOTH'i / 'LEADING'i / 'TRAILING'i
@@ -2759,7 +2793,7 @@ trim_func_clause
     };
   }
 func_call
-  = trim_func_clause
+  = extract_func / trim_func_clause
   / 'convert'i __ LPAREN __ l:convert_args __ RPAREN __ ca:collate_expr? {
     return {
         type: 'function',
@@ -3140,6 +3174,7 @@ KW_MIN      = "MIN"i        !ident_start { return 'MIN'; }
 KW_SUM      = "SUM"i        !ident_start { return 'SUM'; }
 KW_AVG      = "AVG"i        !ident_start { return 'AVG'; }
 
+KW_EXTRACT  = "EXTRACT"i    !ident_start { return 'EXTRACT'; }
 KW_CALL     = "CALL"i       !ident_start { return 'CALL'; }
 
 KW_CASE     = "CASE"i       !ident_start

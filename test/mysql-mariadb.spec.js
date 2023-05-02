@@ -573,6 +573,20 @@ describe('mysql', () => {
           "ALTER TABLE `test` ADD `type` VARCHAR(255) NOT NULL DEFAULT ('default')"
         ]
       },
+      {
+        title: 'string concatenator in where clause',
+        sql: [
+          "SELECT * from tests where name = 'test' || 'abc';",
+          "SELECT * FROM `tests` WHERE `name` = 'test' || 'abc'"
+        ]
+      },
+      {
+        title: 'show create table',
+        sql: [
+          'SHOW CREATE TABLE `debug`',
+          'SHOW CREATE TABLE `debug`'
+        ]
+      },
     ]
     SQL_LIST.forEach(sqlInfo => {
       const { title, sql } = sqlInfo
